@@ -102,9 +102,22 @@ window.addEventListener('DOMContentLoaded', () => {
     setStatus('Procesando archivo...', 'primary');
     try {
       const res = await fetch('/upload', { method: 'POST', body: fd });
-      const data = await res.json();
+      const isJson = (res.headers.get('content-type') || '').includes('application/json');
+      let data = null;
+      if (isJson) {
+        try { data = await res.json(); } catch (_) { /* ignore JSON parse error */ }
+      }
       if (!res.ok) {
-        setStatus(data.error || 'Error al procesar', 'danger');
+        if (res.status === 413) {
+          setStatus((data && data.error) || 'El archivo excede el tamaño máximo permitido.', 'danger');
+        } else {
+          const txt = isJson ? (data && data.error) : (await res.text());
+          setStatus(txt || 'Error al procesar', 'danger');
+        }
+        return;
+      }
+      if (!isJson) {
+        setStatus('Respuesta del servidor no válida (no JSON).', 'danger');
         return;
       }
       setStatus(data.message || 'Archivo procesado', 'success');

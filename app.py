@@ -14,7 +14,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_FILE_DIR'] = os.path.join(os.path.dirname(__file__), 'flask_session')
-app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20MB upload limit
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB upload limit
 os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
 Session(app)
 
@@ -242,6 +242,12 @@ def upload_file():
         })
     except Exception as e:
         return jsonify({'error': f'Error procesando el archivo: {str(e)}'}), 500
+
+
+@app.errorhandler(413)
+def handle_file_too_large(e):
+    # 413 Payload Too Large
+    return jsonify({'error': 'El archivo excede el tamaño máximo permitido (50MB).'}), 413
 
 
 @app.route('/data', methods=['GET'])
