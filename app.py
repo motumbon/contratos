@@ -250,6 +250,10 @@ def bucket_expirations(records):
         '90+ días': 0,
     }
     soonest = []
+    
+    # Group records by pedido to avoid duplicates in soonest list
+    pedido_groups = {}
+    
     for r in records:
         fv = r.get('Fin de validez')
         if not fv:
@@ -259,6 +263,8 @@ def bucket_expirations(records):
         except Exception:
             continue
         delta = (d - today).days
+        
+        # Count all records for buckets (including duplicates by denominación)
         if delta < 0:
             buckets['Vencidos'] += 1
         elif delta <= 30:
@@ -269,9 +275,16 @@ def bucket_expirations(records):
             buckets['61-90 días'] += 1
         else:
             buckets['90+ días'] += 1
-        soonest.append((delta, r))
+        
+        # For soonest list, group by pedido to avoid repetition
+        pedido = r.get('Nº de pedido')
+        if pedido:
+            # Keep the record with the earliest expiration date for each pedido
+            if pedido not in pedido_groups or delta < pedido_groups[pedido][0]:
+                pedido_groups[pedido] = (delta, r)
 
-    soonest = [r for _, r in sorted(soonest, key=lambda x: x[0]) if r.get('Fin de validez')]
+    # Convert grouped pedidos to soonest list
+    soonest = [r for _, r in sorted(pedido_groups.values(), key=lambda x: x[0]) if r.get('Fin de validez')]
     return buckets, soonest[:20]
 
 

@@ -100,10 +100,29 @@ body {
 
 #soonest-list .list-group-item:hover {
   background-color: #2d3748;
+  transform: translateX(2px);
+  transition: all 0.2s ease;
+  border-left: 3px solid #667eea;
+}
+
+#soonest-list .list-group-item {
+  transition: all 0.2s ease;
+  border-left: 3px solid transparent;
 }
 
 #status { 
   min-height: 1.5rem; 
+  color: #ffffff !important; /* Texto blanco para el estado */
+}
+
+/* Contador de contratos en blanco */
+#count {
+  color: #ffffff !important;
+}
+
+/* Texto del contador de contratos en blanco */
+.small.text-muted {
+  color: #ffffff !important;
 }
 
 /* Mejoras visuales adicionales - Tema oscuro */

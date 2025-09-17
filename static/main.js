@@ -146,10 +146,22 @@ function renderSoonest(soonest) {
   for (const r of soonest || []) {
     const li = document.createElement('li');
     li.className = 'list-group-item d-flex justify-content-between align-items-start';
+    li.style.cursor = 'pointer'; // Indicar que es clickeable
+    li.title = 'Haz clic para filtrar por este contrato'; // Tooltip
+    
     const content = document.createElement('div');
     content.className = 'ms-2 me-auto';
-    content.innerHTML = `<div class="fw-semibold">${r['Nom_Cliente'] ?? ''} - ${r['Denominación'] ?? ''}</div>
-      <div class="small text-muted">Pedido: ${r['Nº de pedido'] ?? ''} | Fin: ${r['Fin de validez'] ?? ''}</div>`;
+    content.innerHTML = `<div class="d-flex justify-content-between align-items-center" style="gap: 2rem;">
+        <span class="fw-semibold">${r['Nom_Cliente'] ?? ''}</span>
+        <span class="fw-semibold text-white">Contrato: ${r['Nº de pedido'] ?? ''}</span>
+      </div>
+      <div class="small text-muted">Fin: ${r['Fin de validez'] ?? ''}</div>`;
+    
+    // Agregar evento de clic para filtrar por este contrato
+    li.addEventListener('click', () => {
+      filterByContract(r['Nom_Cliente'], r['Nº de pedido']);
+    });
+    
     li.appendChild(content);
     list.appendChild(li);
   }
@@ -204,6 +216,66 @@ function updateActiveFiltersDisplay() {
   } else {
     activeFiltersEl.style.display = 'none';
   }
+}
+
+function filterByContract(cliente, pedido) {
+  // Limpiar filtros existentes
+  activeFilters = {
+    lineas: [],
+    clientes: [],
+    productos: [],
+    dateRange: null
+  };
+  
+  // Desmarcar todos los checkboxes
+  document.querySelectorAll('input[type="checkbox"][data-filter-type]').forEach(cb => {
+    cb.checked = false;
+  });
+  
+  // Aplicar filtro específico por cliente
+  if (cliente) {
+    activeFilters.clientes = [cliente];
+    // Marcar el checkbox correspondiente si existe
+    const clienteCheckbox = document.querySelector(`input[data-filter-type="clientes"][value="${cliente}"]`);
+    if (clienteCheckbox) {
+      clienteCheckbox.checked = true;
+    }
+  }
+  
+  // Filtrar directamente la tabla por cliente y pedido
+  filterTableByContract(cliente, pedido);
+  
+  updateActiveFiltersDisplay();
+}
+
+function filterTableByContract(cliente, pedido) {
+  // Obtener todos los registros de la sesión
+  fetch('/data')
+    .then(res => res.json())
+    .then(data => {
+      const records = data.records || [];
+      
+      // Filtrar por cliente y pedido específico
+      const filtered = records.filter(r => {
+        const matchCliente = !cliente || r['Nom_Cliente'] === cliente;
+        const matchPedido = !pedido || r['Nº de pedido'] === pedido;
+        return matchCliente && matchPedido;
+      });
+      
+      // Actualizar solo la tabla (no los gráficos ni próximos vencimientos)
+      renderTable(filtered);
+      
+      // Mostrar mensaje informativo
+      if (filtered.length > 0) {
+        setStatus(`Mostrando ${filtered.length} registros para ${cliente} - Pedido: ${pedido}`, 'info');
+      } else {
+        setStatus(`No se encontraron registros para ${cliente} - Pedido: ${pedido}`, 'warning');
+      }
+    })
+    .catch(error => {
+      console.error('Error filtering by contract:', error);
+      setStatus('Error al filtrar por contrato', 'danger');
+    });
 }
 
 function clearAllFilters() {
