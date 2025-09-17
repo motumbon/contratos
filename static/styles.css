@@ -92,9 +92,10 @@ body {
   line-height: 1.2;
 }
 
-#soonest-list .small {
+#soonest-list .small,
+#soonest-list .text-muted {
   font-size: 0.65rem;
-  color: #a0aec0;
+  color: #ffffff !important;
 }
 
 #soonest-list .list-group-item:hover {
