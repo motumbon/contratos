@@ -84,19 +84,47 @@ def parse_date(val):
         return None
 
 
+def clean_text(text):
+    """Clean text for better matching: strip whitespace, normalize spaces, remove special chars"""
+    if pd.isna(text):
+        return ""
+    s = str(text).strip()
+    # Normalize multiple spaces to single space
+    s = ' '.join(s.split())
+    # Remove common invisible characters
+    s = s.replace('\xa0', ' ').replace('\u200b', '').replace('\ufeff', '')
+    return s.upper()
+
 def filter_df_for_rep(df: pd.DataFrame, rep_col: str, target_name: str) -> pd.DataFrame:
     if rep_col is None or rep_col not in df.columns:
         return df.iloc[0:0]
 
+    target_clean = clean_text(target_name)
+    
     # Fuzzy filter rows where rep similar to target name
     def is_target(x):
         if pd.isna(x):
             return False
-        s = str(x)
-        score = fuzz.WRatio(s, target_name)
-        return score >= 80
+        s_clean = clean_text(x)
+        
+        # Try exact match first
+        if target_clean in s_clean or s_clean in target_clean:
+            return True
+            
+        # Then fuzzy match with lower threshold
+        score = fuzz.WRatio(s_clean, target_clean)
+        return score >= 70  # Reduced from 80 to 70
 
-    return df[df[rep_col].apply(is_target)]
+    matches = df[df[rep_col].apply(is_target)]
+    
+    # Debug info: log what we found
+    print(f"DEBUG: Looking for '{target_name}' in column '{rep_col}'")
+    print(f"DEBUG: Found {len(matches)} matches out of {len(df)} total rows")
+    if len(matches) > 0:
+        sample_values = matches[rep_col].head(3).tolist()
+        print(f"DEBUG: Sample matching values: {sample_values}")
+    
+    return matches
 
 
 def prepare_records(df: pd.DataFrame, mapping: dict):

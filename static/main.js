@@ -83,6 +83,47 @@ function setStatus(msg, type = 'muted') {
   el.textContent = msg;
 }
 
+function showProgress(show = true) {
+  const container = document.getElementById('progress-container');
+  const btn = document.getElementById('upload-btn');
+  container.style.display = show ? 'block' : 'none';
+  btn.disabled = show;
+  if (!show) {
+    updateProgress(0);
+  }
+}
+
+function updateProgress(percent, text = null) {
+  const bar = document.getElementById('progress-bar');
+  const textEl = document.getElementById('progress-text');
+  bar.style.width = `${percent}%`;
+  textEl.textContent = text || `${percent}%`;
+}
+
+function simulateProgress(duration = 3000) {
+  let progress = 0;
+  const steps = ['Subiendo archivo...', 'Leyendo Excel...', 'Procesando datos...', 'Aplicando filtros...', 'Finalizando...'];
+  let stepIndex = 0;
+  
+  const interval = setInterval(() => {
+    progress += Math.random() * 15 + 5; // Increment by 5-20%
+    if (progress > 95) progress = 95; // Don't complete until real response
+    
+    const currentStep = Math.floor((progress / 100) * steps.length);
+    if (currentStep < steps.length && currentStep !== stepIndex) {
+      stepIndex = currentStep;
+    }
+    
+    updateProgress(Math.floor(progress), steps[stepIndex] || 'Procesando...');
+    
+    if (progress >= 95) {
+      clearInterval(interval);
+    }
+  }, duration / 20);
+  
+  return interval;
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('upload-form');
   const fileInput = document.getElementById('file');
@@ -97,40 +138,67 @@ window.addEventListener('DOMContentLoaded', () => {
       setStatus('Seleccione un archivo Excel primero', 'danger');
       return;
     }
+    
+    // Show file size info
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    setStatus(`Preparando archivo (${sizeMB} MB)...`, 'primary');
+    
     const fd = new FormData();
     fd.append('file', file);
-    setStatus('Procesando archivo...', 'primary');
+    
+    // Start progress simulation
+    showProgress(true);
+    const progressInterval = simulateProgress(4000);
+    
     try {
       const res = await fetch('/upload', { method: 'POST', body: fd });
+      
+      // Clear simulation and show completion
+      clearInterval(progressInterval);
+      updateProgress(100, 'Completado');
+      
       const isJson = (res.headers.get('content-type') || '').includes('application/json');
       let data = null;
       if (isJson) {
         try { data = await res.json(); } catch (_) { /* ignore JSON parse error */ }
       }
+      
       if (!res.ok) {
+        showProgress(false);
         if (res.status === 413) {
-          setStatus((data && data.error) || 'El archivo excede el tamaño máximo permitido.', 'danger');
+          setStatus((data && data.error) || 'El archivo excede el tamaño máximo permitido (50MB).', 'danger');
         } else {
           const txt = isJson ? (data && data.error) : (await res.text());
           setStatus(txt || 'Error al procesar', 'danger');
         }
         return;
       }
+      
       if (!isJson) {
+        showProgress(false);
         setStatus('Respuesta del servidor no válida (no JSON).', 'danger');
         return;
       }
-      setStatus(data.message || 'Archivo procesado', 'success');
+      
+      // Success - hide progress and show results
+      setTimeout(() => showProgress(false), 1000); // Keep progress visible briefly
+      setStatus(`${data.message || 'Archivo procesado'} (${data.count || 0} contratos encontrados)`, 'success');
+      
       // Fill filters
       fillSelect(selLinea, data.filters?.lineas || [], 'Todas');
       fillSelect(selCliente, data.filters?.clientes || [], 'Todos');
       fillSelect(selProducto, data.filters?.productos || [], 'Todas');
+      
       // Render initial
       renderChart(data.buckets || {});
       renderSoonest(data.soonest || []);
+      
       // Fetch records to fill table
       await fetchDataWithFilters();
+      
     } catch (err) {
+      clearInterval(progressInterval);
+      showProgress(false);
       console.error(err);
       setStatus('Error de red o de servidor', 'danger');
     }
