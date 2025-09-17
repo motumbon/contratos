@@ -1,0 +1,6 @@
+body { background-color: #f6f8fb; }
+.navbar-brand { font-weight: 600; }
+.card { border: 0; }
+.card-title { font-weight: 600; }
+#data-table td, #data-table th { white-space: nowrap; }
+#status { min-height: 1.5rem; }
