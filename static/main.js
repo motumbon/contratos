@@ -1,12 +1,59 @@
-// Helper: populate select options
-function fillSelect(select, items, placeholder = 'Todas/Todos') {
-  select.innerHTML = `<option value="">${placeholder}</option>`;
-  for (const it of items) {
-    const opt = document.createElement('option');
-    opt.value = it;
-    opt.textContent = it;
-    select.appendChild(opt);
+// Global state for filters
+let activeFilters = {
+  lineas: [],
+  clientes: [],
+  productos: [],
+  dateRange: null
+};
+
+// Helper: populate checkbox filters
+function fillCheckboxFilter(containerId, items, filterType) {
+  const container = document.getElementById(containerId);
+  if (!items || items.length === 0) {
+    container.innerHTML = '<div class="text-muted small" style="color: #e2e8f0 !important;">Sin opciones</div>';
+    return;
   }
+  
+  container.innerHTML = '';
+  for (const item of items) {
+    const div = document.createElement('div');
+    div.className = 'form-check';
+    div.innerHTML = `
+      <input class="form-check-input" type="checkbox" value="${item}" id="${filterType}-${item.replace(/[^a-zA-Z0-9]/g, '')}" data-filter-type="${filterType}">
+      <label class="form-check-label small" for="${filterType}-${item.replace(/[^a-zA-Z0-9]/g, '')}" title="${item}">
+        ${item.length > 30 ? item.substring(0, 30) + '...' : item}
+      </label>
+    `;
+    container.appendChild(div);
+  }
+  
+  // Add event listeners to checkboxes
+  container.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+    checkbox.addEventListener('change', handleFilterChange);
+  });
+}
+
+function getContractTypeBadge(tipo) {
+  if (!tipo) return '<span class="badge bg-secondary">-</span>';
+  
+  const tipoLower = tipo.toLowerCase();
+  let badgeClass = 'bg-secondary';
+  
+  if (tipoLower.includes('licitacion publica') || tipoLower.includes('licitación pública')) {
+    badgeClass = 'bg-success'; // Verde
+  } else if (tipoLower.includes('trato directo')) {
+    badgeClass = 'bg-warning'; // Naranja/Amarillo
+  } else if (tipoLower.includes('acuerdo comercial')) {
+    badgeClass = 'bg-primary'; // Azul
+  } else if (tipoLower.includes('cotizacion masiva') || tipoLower.includes('cotización masiva')) {
+    badgeClass = 'bg-danger'; // Rojo
+  } else if (tipoLower.includes('cotizacion') || tipoLower.includes('cotización')) {
+    badgeClass = 'bg-info'; // Azul claro/Cian
+  } else if (tipoLower.includes('licitacion privada') || tipoLower.includes('licitación privada')) {
+    badgeClass = 'bg-dark'; // Gris oscuro
+  }
+  
+  return `<span class="badge ${badgeClass}">${tipo}</span>`;
 }
 
 function renderTable(records) {
@@ -19,6 +66,7 @@ function renderTable(records) {
       <td>${r['Nom_Cliente'] ?? ''}</td>
       <td>${r['Nº de pedido'] ?? ''}</td>
       <td>${r['Denominación'] ?? ''}</td>
+      <td>${getContractTypeBadge(r['Tipo Ctto'])}</td>
       <td>${r['Inicio de validez'] ?? ''}</td>
       <td>${r['Fin de validez'] ?? ''}</td>
     `;
@@ -30,17 +78,66 @@ function renderTable(records) {
 function renderChart(buckets) {
   const labels = ['Vencidos', '0-30 días', '31-60 días', '61-90 días', '90+ días'];
   const values = labels.map(l => buckets?.[l] || 0);
+  const colors = ['#dc3545', '#ffc107', '#fd7e14', '#0dcaf0', '#198754'];
+  
+  // Highlight selected range
+  const highlightColors = colors.map((color, i) => {
+    const range = ['vencidos', '0-30', '31-60', '61-90', '90+'][i];
+    return activeFilters.dateRange === range ? color : color + '80'; // Add transparency if not selected
+  });
+  
   const data = [{
     x: labels,
     y: values,
     type: 'bar',
-    marker: { color: ['#dc3545', '#ffc107', '#fd7e14', '#0dcaf0', '#198754'] }
+    marker: { 
+      color: activeFilters.dateRange ? highlightColors : colors,
+      line: { width: 2, color: '#fff' }
+    },
+    hovertemplate: '<b>%{x}</b><br>Contratos: %{y}<br><i>Click para filtrar</i><extra></extra>'
   }];
+  
   const layout = {
     margin: { t: 10, r: 10, l: 40, b: 40 },
-    yaxis: { title: 'Cantidad' }
+    yaxis: { 
+      title: { text: 'Cantidad', font: { color: '#e2e8f0', size: 12 } },
+      tickfont: { color: '#cbd5e0', size: 10 },
+      gridcolor: '#4a5568'
+    },
+    xaxis: { 
+      title: { text: 'Rango de vencimiento', font: { color: '#e2e8f0', size: 12 } },
+      tickfont: { color: '#cbd5e0', size: 10 },
+      gridcolor: '#4a5568'
+    },
+    plot_bgcolor: '#1a202c',
+    paper_bgcolor: '#2d3748',
+    font: { color: '#e2e8f0' }
   };
-  Plotly.newPlot('chart', data, layout, {displayModeBar: false, responsive: true});
+  
+  const config = {
+    displayModeBar: false, 
+    responsive: true,
+    staticPlot: false
+  };
+  
+  Plotly.newPlot('chart', data, layout, config);
+  
+  // Add click event to bars
+  document.getElementById('chart').on('plotly_click', function(data) {
+    const pointIndex = data.points[0].pointIndex;
+    const ranges = ['vencidos', '0-30', '31-60', '61-90', '90+'];
+    const selectedRange = ranges[pointIndex];
+    
+    // Toggle date range filter
+    if (activeFilters.dateRange === selectedRange) {
+      activeFilters.dateRange = null; // Deselect if already selected
+    } else {
+      activeFilters.dateRange = selectedRange;
+    }
+    
+    updateActiveFiltersDisplay();
+    fetchDataWithFilters();
+  });
 }
 
 function renderSoonest(soonest) {
@@ -58,23 +155,100 @@ function renderSoonest(soonest) {
   }
 }
 
-async function fetchDataWithFilters() {
-  const linea = document.getElementById('filter-linea').value;
-  const cliente = document.getElementById('filter-cliente').value;
-  const producto = document.getElementById('filter-producto').value;
-  const params = new URLSearchParams();
-  if (linea) params.set('linea', linea);
-  if (cliente) params.set('cliente', cliente);
-  if (producto) params.set('producto', producto);
-  const res = await fetch('/data' + (params.toString() ? ('?' + params.toString()) : ''));
-  if (!res.ok) {
-    console.error('Error cargando datos con filtros');
-    return;
+function handleFilterChange(event) {
+  const checkbox = event.target;
+  const filterType = checkbox.dataset.filterType;
+  const value = checkbox.value;
+  
+  if (checkbox.checked) {
+    if (!activeFilters[filterType].includes(value)) {
+      activeFilters[filterType].push(value);
+    }
+  } else {
+    activeFilters[filterType] = activeFilters[filterType].filter(v => v !== value);
   }
-  const data = await res.json();
-  renderTable(data.records || []);
-  renderChart(data.buckets || {});
-  renderSoonest(data.soonest || []);
+  
+  updateActiveFiltersDisplay();
+  fetchDataWithFilters();
+}
+
+function updateActiveFiltersDisplay() {
+  const activeFiltersEl = document.getElementById('active-filters');
+  const activeFiltersText = document.getElementById('active-filters-text');
+  
+  const filterTexts = [];
+  
+  if (activeFilters.lineas.length > 0) {
+    filterTexts.push(`Líneas: ${activeFilters.lineas.length}`);
+  }
+  if (activeFilters.clientes.length > 0) {
+    filterTexts.push(`Clientes: ${activeFilters.clientes.length}`);
+  }
+  if (activeFilters.productos.length > 0) {
+    filterTexts.push(`Productos: ${activeFilters.productos.length}`);
+  }
+  if (activeFilters.dateRange) {
+    const rangeNames = {
+      'vencidos': 'Vencidos',
+      '0-30': '0-30 días',
+      '31-60': '31-60 días', 
+      '61-90': '61-90 días',
+      '90+': '90+ días'
+    };
+    filterTexts.push(`Rango: ${rangeNames[activeFilters.dateRange]}`);
+  }
+  
+  if (filterTexts.length > 0) {
+    activeFiltersText.textContent = filterTexts.join(' | ');
+    activeFiltersEl.style.display = 'block';
+  } else {
+    activeFiltersEl.style.display = 'none';
+  }
+}
+
+function clearAllFilters() {
+  // Reset filter state
+  activeFilters = {
+    lineas: [],
+    clientes: [],
+    productos: [],
+    dateRange: null
+  };
+  
+  // Uncheck all checkboxes
+  document.querySelectorAll('input[type="checkbox"][data-filter-type]').forEach(cb => {
+    cb.checked = false;
+  });
+  
+  updateActiveFiltersDisplay();
+  fetchDataWithFilters();
+}
+
+async function fetchDataWithFilters() {
+  const params = new URLSearchParams();
+  
+  // Add multiple values for each filter type
+  activeFilters.lineas.forEach(linea => params.append('linea', linea));
+  activeFilters.clientes.forEach(cliente => params.append('cliente', cliente));
+  activeFilters.productos.forEach(producto => params.append('producto', producto));
+  
+  if (activeFilters.dateRange) {
+    params.set('date_range', activeFilters.dateRange);
+  }
+  
+  try {
+    const res = await fetch('/data' + (params.toString() ? ('?' + params.toString()) : ''));
+    if (!res.ok) {
+      console.error('Error cargando datos con filtros');
+      return;
+    }
+    const data = await res.json();
+    renderTable(data.records || []);
+    renderChart(data.buckets || {});
+    renderSoonest(data.soonest || []);
+  } catch (error) {
+    console.error('Error fetching filtered data:', error);
+  }
 }
 
 function setStatus(msg, type = 'muted') {
@@ -127,9 +301,7 @@ function simulateProgress(duration = 3000) {
 window.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('upload-form');
   const fileInput = document.getElementById('file');
-  const selLinea = document.getElementById('filter-linea');
-  const selCliente = document.getElementById('filter-cliente');
-  const selProducto = document.getElementById('filter-producto');
+  const clearFiltersBtn = document.getElementById('clear-filters');
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -184,10 +356,18 @@ window.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => showProgress(false), 1000); // Keep progress visible briefly
       setStatus(`${data.message || 'Archivo procesado'} (${data.count || 0} contratos encontrados)`, 'success');
       
-      // Fill filters
-      fillSelect(selLinea, data.filters?.lineas || [], 'Todas');
-      fillSelect(selCliente, data.filters?.clientes || [], 'Todos');
-      fillSelect(selProducto, data.filters?.productos || [], 'Todas');
+      // Fill checkbox filters
+      fillCheckboxFilter('filter-linea-container', data.filters?.lineas || [], 'lineas');
+      fillCheckboxFilter('filter-cliente-container', data.filters?.clientes || [], 'clientes');
+      fillCheckboxFilter('filter-producto-container', data.filters?.productos || [], 'productos');
+      
+      // Reset filter state
+      activeFilters = {
+        lineas: [],
+        clientes: [],
+        productos: [],
+        dateRange: null
+      };
       
       // Render initial
       renderChart(data.buckets || {});
@@ -204,7 +384,6 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  selLinea.addEventListener('change', fetchDataWithFilters);
-  selCliente.addEventListener('change', fetchDataWithFilters);
-  selProducto.addEventListener('change', fetchDataWithFilters);
+  // Clear filters button
+  clearFiltersBtn.addEventListener('click', clearAllFilters);
 });

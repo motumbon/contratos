@@ -9,9 +9,13 @@
   <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-  <div class="container-fluid">
-    <span class="navbar-brand">Contratos - Seguimiento</span>
+<nav class="navbar navbar-expand-lg navbar-dark" style="background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); box-shadow: 0 2px 15px rgba(0,0,0,0.4); border-bottom: 1px solid #4a5568;">
+  <div class="container">
+    <div class="w-100 d-flex justify-content-center">
+      <span class="navbar-brand mb-0 h1 fw-bold text-center" style="font-size: 1.8rem; letter-spacing: 1px; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">
+        📊 Contratos - Seguimiento
+      </span>
+    </div>
   </div>
 </nav>
 
@@ -47,25 +51,37 @@
     <div class="col-12">
       <div class="card shadow-sm">
         <div class="card-body">
-          <h5 class="card-title">Filtros</h5>
-          <div class="row gy-2 gx-3 align-items-center">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="card-title m-0">Filtros</h5>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-filters">
+              <i class="bi bi-x-circle"></i> Limpiar filtros
+            </button>
+          </div>
+          <div class="row gy-3 gx-3">
             <div class="col-sm-4">
-              <label for="filter-linea" class="form-label">Linea</label>
-              <select id="filter-linea" class="form-select">
-                <option value="">Todas</option>
-              </select>
+              <label class="form-label fw-semibold">Linea</label>
+              <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;" id="filter-linea-container">
+                <div class="text-muted small">Cargando...</div>
+              </div>
             </div>
             <div class="col-sm-4">
-              <label for="filter-cliente" class="form-label">Cliente</label>
-              <select id="filter-cliente" class="form-select">
-                <option value="">Todos</option>
-              </select>
+              <label class="form-label fw-semibold">Cliente</label>
+              <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;" id="filter-cliente-container">
+                <div class="text-muted small">Cargando...</div>
+              </div>
             </div>
             <div class="col-sm-4">
-              <label for="filter-producto" class="form-label">Denominación</label>
-              <select id="filter-producto" class="form-select">
-                <option value="">Todas</option>
-              </select>
+              <label class="form-label fw-semibold">Denominación</label>
+              <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;" id="filter-producto-container">
+                <div class="text-muted small">Cargando...</div>
+              </div>
+            </div>
+          </div>
+          <div class="row mt-3">
+            <div class="col-12">
+              <div class="alert alert-info py-2 mb-0" id="active-filters" style="display: none;">
+                <small><strong>Filtros activos:</strong> <span id="active-filters-text"></span></small>
+              </div>
             </div>
           </div>
         </div>
@@ -105,6 +121,7 @@
                   <th>Nom_Cliente</th>
                   <th>Nº de pedido</th>
                   <th>Denominación</th>
+                  <th>Tipo Ctto</th>
                   <th>Inicio de validez</th>
                   <th>Fin de validez</th>
                 </tr>

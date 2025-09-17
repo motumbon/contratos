@@ -30,7 +30,18 @@ COLUMN_TARGETS = {
     'denominacion': ['Denominación', 'Producto', 'Descripción', 'Denominacion'],
     'inicio_validez': ['Inicio validez', 'Inicio de validez', 'Fecha Inicio', 'Desde'],
     'fin_validez': ['Fin de validez', 'Fin validez', 'Fecha Fin', 'Hasta', 'Vencimiento'],
+    'tipo_ctto': ['Tipo Ctto', 'Tipo Contrato', 'Tipo de Contrato', 'TipoCtto', 'Tipo_Ctto'],
 }
+
+# Valid contract types to include
+VALID_CONTRACT_TYPES = [
+    'Acuerdo Comercial',
+    'Licitacion Publica', 
+    'Licitacion Privada',
+    'Cotizacion',
+    'Cotizacion Masiva',
+    'Trato Directo'
+]
 
 DISPLAY_NAME = {
     'linea': 'Linea',
@@ -60,15 +71,19 @@ def standardize_columns(df: pd.DataFrame) -> dict:
     """Map existing df columns to our canonical keys using fuzzy matching."""
     mapping = {}
     cols = list(df.columns.astype(str))
+    
+    print(f"DEBUG: Available columns: {cols}")
 
     # Find rep column
     rep_col, rep_score = fuzzy_find_best(REP_COLUMN_CANDIDATES, cols, score_cutoff=65)
     mapping['rep'] = rep_col
+    print(f"DEBUG: Rep column mapping: '{rep_col}' (score: {rep_score})")
 
     # Find target columns
     for key, candidates in COLUMN_TARGETS.items():
         col, score = fuzzy_find_best(candidates, cols, score_cutoff=60)
         mapping[key] = col
+        print(f"DEBUG: Column '{key}' mapped to '{col}' (score: {score})")
 
     return mapping
 
@@ -118,13 +133,68 @@ def filter_df_for_rep(df: pd.DataFrame, rep_col: str, target_name: str) -> pd.Da
     matches = df[df[rep_col].apply(is_target)]
     
     # Debug info: log what we found
-    print(f"DEBUG: Looking for '{target_name}' in column '{rep_col}'")
+    print(f"DEBUG: Looking for '{target_name}' (cleaned: '{target_clean}') in column '{rep_col}'")
+    
+    if rep_col and rep_col in df.columns:
+        # Show sample of all values in the rep column
+        all_values = df[rep_col].dropna().head(10).tolist()
+        print(f"DEBUG: Sample values in '{rep_col}' column: {all_values}")
+        
+        # Show cleaned versions
+        cleaned_values = [clean_text(v) for v in all_values[:5]]
+        print(f"DEBUG: Sample cleaned values: {cleaned_values}")
+    
     print(f"DEBUG: Found {len(matches)} matches out of {len(df)} total rows")
     if len(matches) > 0:
         sample_values = matches[rep_col].head(3).tolist()
         print(f"DEBUG: Sample matching values: {sample_values}")
+    else:
+        print("DEBUG: No matches found - checking why...")
+        if rep_col and rep_col in df.columns:
+            # Test a few values manually
+            test_values = df[rep_col].dropna().head(5)
+            for i, val in enumerate(test_values):
+                cleaned = clean_text(val)
+                exact_match = target_clean in cleaned or cleaned in target_clean
+                fuzzy_score = fuzz.WRatio(cleaned, target_clean)
+                print(f"DEBUG: Value {i+1}: '{val}' -> cleaned: '{cleaned}' -> exact: {exact_match}, fuzzy: {fuzzy_score}")
     
     return matches
+
+
+def filter_by_contract_type(df: pd.DataFrame, tipo_ctto_col: str) -> pd.DataFrame:
+    """Filter DataFrame to include only valid contract types"""
+    if tipo_ctto_col is None or tipo_ctto_col not in df.columns:
+        print("DEBUG: No 'Tipo Ctto' column found, including all records")
+        return df
+    
+    print(f"DEBUG: Filtering by contract type using column '{tipo_ctto_col}'")
+    
+    # Show sample values in the tipo_ctto column
+    sample_values = df[tipo_ctto_col].dropna().unique()[:10]
+    print(f"DEBUG: Sample contract types found: {list(sample_values)}")
+    
+    def is_valid_contract_type(tipo):
+        if pd.isna(tipo):
+            return False
+        tipo_clean = clean_text(str(tipo))
+        
+        # Check if any valid type matches (fuzzy matching)
+        for valid_type in VALID_CONTRACT_TYPES:
+            valid_clean = clean_text(valid_type)
+            # Exact match or high fuzzy match
+            if valid_clean == tipo_clean or fuzz.WRatio(tipo_clean, valid_clean) >= 85:
+                return True
+        return False
+    
+    filtered_df = df[df[tipo_ctto_col].apply(is_valid_contract_type)]
+    
+    print(f"DEBUG: Contract type filter: {len(filtered_df)} records kept out of {len(df)} total")
+    if len(filtered_df) > 0:
+        kept_types = filtered_df[tipo_ctto_col].value_counts().head(10)
+        print(f"DEBUG: Kept contract types: {dict(kept_types)}")
+    
+    return filtered_df
 
 
 def prepare_records(df: pd.DataFrame, mapping: dict):
@@ -136,6 +206,7 @@ def prepare_records(df: pd.DataFrame, mapping: dict):
         'denominacion': mapping.get('denominacion'),
         'inicio_validez': mapping.get('inicio_validez'),
         'fin_validez': mapping.get('fin_validez'),
+        'tipo_ctto': mapping.get('tipo_ctto'),
     }
 
     # Select available columns
@@ -161,6 +232,7 @@ def prepare_records(df: pd.DataFrame, mapping: dict):
             'Nom_Cliente': row.get('nom_cliente', None),
             'Nº de pedido': row.get('n_pedido', None),
             'Denominación': row.get('denominacion', None),
+            'Tipo Ctto': row.get('tipo_ctto', None),
             'Inicio de validez': row.get('inicio_validez').strftime('%Y-%m-%d') if row.get('inicio_validez') else None,
             'Fin de validez': row.get('fin_validez').strftime('%Y-%m-%d') if row.get('fin_validez') else None,
         }
@@ -222,25 +294,40 @@ def upload_file():
         in_mem_file = io.BytesIO(file.read())
         xl = pd.ExcelFile(in_mem_file)
         sheet_name = None
+        # Debug: show available sheets
+        print(f"DEBUG: Available sheets: {xl.sheet_names}")
+        
         # Exact match preferred
         if REQUIRED_SHEET_NAME in xl.sheet_names:
             sheet_name = REQUIRED_SHEET_NAME
+            print(f"DEBUG: Found exact sheet match: {sheet_name}")
         else:
             # Fuzzy match for sheet name similar to DDBB
             sheet_name, score = process.extractOne(REQUIRED_SHEET_NAME, xl.sheet_names, scorer=fuzz.WRatio)
+            print(f"DEBUG: Fuzzy sheet match: {sheet_name} (score: {score})")
             if score < 70:
-                return jsonify({'error': f'No se encontró la hoja "{REQUIRED_SHEET_NAME}" en el Excel.'}), 400
+                return jsonify({'error': f'No se encontró la hoja "{REQUIRED_SHEET_NAME}" en el Excel. Hojas disponibles: {xl.sheet_names}'}), 400
         df = xl.parse(sheet_name)
+        print(f"DEBUG: Loaded sheet '{sheet_name}' with {len(df)} rows and {len(df.columns)} columns")
         if df.empty:
             return jsonify({'error': 'La hoja seleccionada está vacía'}), 400
 
-        # Standardize columns and filter by representative
+        # Standardize columns and apply filters
         mapping = standardize_columns(df)
+        
+        # Filter by contract type first
+        tipo_ctto_col = mapping.get('tipo_ctto')
+        df_filtered = filter_by_contract_type(df, tipo_ctto_col)
+        
+        if df_filtered.empty:
+            return jsonify({'error': 'No se encontraron contratos con tipos válidos (Acuerdo Comercial, Licitación Pública, etc.).'}), 404
+        
+        # Then filter by representative
         rep_col = mapping.get('rep')
-        df_rep = filter_df_for_rep(df, rep_col, TARGET_REP_NAME)
+        df_rep = filter_df_for_rep(df_filtered, rep_col, TARGET_REP_NAME)
 
         if df_rep.empty:
-            return jsonify({'error': f'No se encontraron registros para "{TARGET_REP_NAME}" o similar.'}), 404
+            return jsonify({'error': f'No se encontraron registros para "{TARGET_REP_NAME}" o similar con tipos de contrato válidos.'}), 404
 
         records = prepare_records(df_rep, mapping)
         if not records:
@@ -284,22 +371,63 @@ def get_data():
     if not records:
         return jsonify({'records': [], 'count': 0})
 
-    # Apply filters
-    linea = request.args.get('linea')
-    cliente = request.args.get('cliente')
-    producto = request.args.get('producto')
+    # Apply filters - now supporting multiple values
+    lineas = request.args.getlist('linea')  # Get list of values
+    clientes = request.args.getlist('cliente')
+    productos = request.args.getlist('producto')
+    date_range = request.args.get('date_range')  # New: filter by expiration range
 
     filtered = records
-    if linea:
-        filtered = [r for r in filtered if (r.get('Linea') == linea)]
-    if cliente:
-        filtered = [r for r in filtered if (r.get('Nom_Cliente') == cliente)]
-    if producto:
-        filtered = [r for r in filtered if (r.get('Denominación') == producto)]
+    
+    # Filter by lineas (multiple selection)
+    if lineas:
+        filtered = [r for r in filtered if r.get('Linea') in lineas]
+    
+    # Filter by clientes (multiple selection)
+    if clientes:
+        filtered = [r for r in filtered if r.get('Nom_Cliente') in clientes]
+    
+    # Filter by productos (multiple selection)
+    if productos:
+        filtered = [r for r in filtered if r.get('Denominación') in productos]
+    
+    # Filter by date range (from chart click)
+    if date_range:
+        filtered = filter_by_date_range(filtered, date_range)
 
     buckets, soonest = bucket_expirations(filtered)
 
     return jsonify({'records': filtered, 'count': len(filtered), 'buckets': buckets, 'soonest': soonest})
+
+
+def filter_by_date_range(records, date_range):
+    """Filter records by expiration date range"""
+    from datetime import datetime, date
+    today = date.today()
+    
+    filtered = []
+    for r in records:
+        fv = r.get('Fin de validez')
+        if not fv:
+            continue
+        try:
+            d = dateparser.parse(fv).date()
+            delta = (d - today).days
+            
+            if date_range == 'vencidos' and delta < 0:
+                filtered.append(r)
+            elif date_range == '0-30' and 0 <= delta <= 30:
+                filtered.append(r)
+            elif date_range == '31-60' and 31 <= delta <= 60:
+                filtered.append(r)
+            elif date_range == '61-90' and 61 <= delta <= 90:
+                filtered.append(r)
+            elif date_range == '90+' and delta > 90:
+                filtered.append(r)
+        except Exception:
+            continue
+    
+    return filtered
 
 
 if __name__ == '__main__':

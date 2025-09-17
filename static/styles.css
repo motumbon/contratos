@@ -1,6 +1,230 @@
-body { background-color: #f6f8fb; }
-.navbar-brand { font-weight: 600; }
-.card { border: 0; }
-.card-title { font-weight: 600; }
-#data-table td, #data-table th { white-space: nowrap; }
-#status { min-height: 1.5rem; }
+body { 
+  background-color: #1a1d23; 
+  color: #e2e8f0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.navbar-brand { 
+  font-weight: 600; 
+  text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.card { 
+  border: 0; 
+  border-radius: 12px;
+  background-color: #2d3748;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  border: 1px solid #4a5568;
+}
+
+.card-title { 
+  font-weight: 600; 
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* Tabla de contratos con fuente más pequeña - Tema oscuro */
+#data-table {
+  font-size: 0.75rem;
+  background-color: #1a202c;
+  color: #e2e8f0;
+}
+
+#data-table td, #data-table th { 
+  white-space: nowrap; 
+  padding: 0.4rem 0.5rem;
+  vertical-align: middle;
+  border-color: #4a5568;
+}
+
+#data-table th {
+  background-color: #2d3748;
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #cbd5e0;
+  border-bottom: 2px solid #4a5568;
+}
+
+#data-table tbody tr:hover {
+  background-color: #2d3748;
+}
+
+#data-table tbody tr {
+  background-color: #1a202c;
+}
+
+/* Badges más pequeños */
+#data-table .badge {
+  font-size: 0.65rem;
+  padding: 0.25em 0.5em;
+}
+
+/* Responsive para pantallas pequeñas */
+@media (max-width: 768px) {
+  #data-table {
+    font-size: 0.65rem;
+  }
+  
+  #data-table td, #data-table th {
+    padding: 0.3rem 0.4rem;
+  }
+}
+
+/* Lista de próximos vencimientos - más compacta */
+#soonest-list {
+  font-size: 0.7rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+#soonest-list .list-group-item {
+  background-color: #1a202c;
+  border-color: #4a5568;
+  color: #e2e8f0;
+  padding: 0.4rem 0.75rem;
+}
+
+#soonest-list .fw-semibold {
+  font-size: 0.75rem;
+  color: #90cdf4;
+  line-height: 1.2;
+}
+
+#soonest-list .small {
+  font-size: 0.65rem;
+  color: #a0aec0;
+}
+
+#soonest-list .list-group-item:hover {
+  background-color: #2d3748;
+}
+
+#status { 
+  min-height: 1.5rem; 
+}
+
+/* Mejoras visuales adicionales - Tema oscuro */
+.progress {
+  border-radius: 10px;
+  overflow: hidden;
+  background-color: #4a5568;
+}
+
+.btn {
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.btn-primary {
+  background-color: #667eea;
+  border-color: #667eea;
+}
+
+.btn-primary:hover {
+  background-color: #5a67d8;
+  border-color: #5a67d8;
+}
+
+.btn-outline-secondary {
+  color: #a0aec0;
+  border-color: #4a5568;
+}
+
+.btn-outline-secondary:hover {
+  background-color: #4a5568;
+  border-color: #4a5568;
+  color: #e2e8f0;
+}
+
+.form-control, .form-select {
+  border-radius: 8px;
+  border: 1px solid #4a5568;
+  background-color: #1a202c;
+  color: #e2e8f0;
+}
+
+.form-control:focus, .form-select:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+  background-color: #1a202c;
+  color: #e2e8f0;
+}
+
+.form-label {
+  color: #cbd5e0;
+}
+
+/* Filtros con checkboxes - tema oscuro */
+.form-check-input {
+  background-color: #1a202c;
+  border-color: #4a5568;
+}
+
+.form-check-input:checked {
+  background-color: #667eea;
+  border-color: #667eea;
+}
+
+.form-check-label {
+  color: #e2e8f0;
+}
+
+/* Contenedores de filtros */
+#filter-linea-container,
+#filter-cliente-container,
+#filter-producto-container {
+  background-color: #1a202c;
+  border-color: #4a5568 !important;
+}
+
+#filter-linea-container .text-muted,
+#filter-cliente-container .text-muted,
+#filter-producto-container .text-muted {
+  color: #e2e8f0 !important; /* Texto blanco para "Cargando..." */
+}
+
+/* Alert de filtros activos */
+.alert-info {
+  background-color: #2b6cb0;
+  border-color: #3182ce;
+  color: #e2e8f0;
+}
+
+/* Badges con colores distintivos para tipos de contrato */
+.badge.bg-secondary {
+  background-color: #4a5568 !important;
+  color: #e2e8f0;
+}
+
+.badge.bg-success {
+  background-color: #38a169 !important; /* Verde para Licitación Pública */
+  color: #ffffff;
+}
+
+.badge.bg-warning {
+  background-color: #ed8936 !important; /* Naranja para Trato Directo */
+  color: #ffffff;
+}
+
+.badge.bg-primary {
+  background-color: #3182ce !important; /* Azul para Acuerdo Comercial */
+  color: #ffffff;
+}
+
+.badge.bg-danger {
+  background-color: #e53e3e !important; /* Rojo para Cotización Masiva */
+  color: #ffffff;
+}
+
+.badge.bg-info {
+  background-color: #0bc5ea !important; /* Cian para Cotización */
+  color: #ffffff;
+}
+
+.badge.bg-dark {
+  background-color: #2d3748 !important; /* Gris oscuro para Licitación Privada */
+  color: #e2e8f0;
+  border: 1px solid #4a5568;
+}
